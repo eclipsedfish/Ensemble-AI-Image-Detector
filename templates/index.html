@@ -1,0 +1,183 @@
+<head>
+    <meta charset="utf-8">
+    <title>AI-Generated Image Detector</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
+          crossorigin="anonymous">
+</head>
+<body>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col">
+            <h2>AI-Generated Image Detector</h2>
+
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="image_file">Upload Image:</label>
+                    <input type="file" name="image_file" id="image_file" class="form-control-file" accept="image/*"
+                           required>
+                </div>
+                <button type="submit" class="btn btn-primary">Check</button>
+            </form>
+        </div>
+        {% if original_image != "" %}
+        <div class="col">
+            <img src="{{ url_for('static', filename='uploads/' ~ original_image) }}" class="img-thumbnail"
+                 alt="Grad-CAM" style="height:224px;width:224px;">
+        </div>
+        {% endif %}
+    </div>
+    <br>
+
+    {% if meta_prediction %}
+    <div class="row">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <h2>Results</h2>
+                    <div class="card-title"><b>Ensemble Model Prediction</b>: {{meta_prediction}}
+                        ({{meta_conf|round(2)}} % confidence)
+                    </div>
+                    <div id="accordion">
+                        <div class="card">
+                            <div class="card-header" id="headingOne">
+                                <h5 class="mb-0">
+                                    <button class="btn btn-link" data-toggle="collapse" data-target="#collapseOne"
+                                            aria-controls="collapseOne">
+                                        Individual Model Predictions
+                                    </button>
+                                </h5>
+                            </div>
+                            <div id="collapseOne" class="collapse show" aria-labelledby="headingOne"
+                                 data-parent="#accordion">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col">
+                                            <div class="card" style="width: 18rem;">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">EfficientNetB3</h5>
+                                                    <h6 class="card-subtitle mb-2 text-muted">{{eff_pred}} ({{eff_conf |
+                                                        round(2) }} %
+                                                        confidence)</h6>
+                                                    <img src="{{url_for('static', filename='gradcam/' ~ eff_cam) }}"
+                                                         class="img-fluid">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col">
+                                            <div class="card" style="width: 18rem;">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">ResNet50</h5>
+                                                    <h6 class="card-subtitle mb-2 text-muted">{{res_pred}} ({{res_conf |
+                                                        round(2) }} %
+                                                        confidence)</h6>
+                                                    <img src="{{url_for('static', filename='gradcam/' ~ res_cam) }}"
+                                                         class="img-fluid">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col">
+                                            <div class="card" style="width: 18rem;">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">Swin Transformer</h5>
+                                                    <h6 class="card-subtitle mb-2 text-muted">{{swin_pred}} ({{swin_conf
+                                                        |
+                                                        round(2) }} %
+                                                        confidence)</h6>
+                                                    <img src="{{url_for('static', filename='gradcam/' ~ swin_cam) }}"
+                                                         class="img-fluid">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if meta_prediction == "FAKE" %}
+                    <br>
+                    <div id="accordion2">
+                        <div class="card">
+                            <div class="card-header" id="headingTwo">
+                                <h5 class="mb-0">
+                                    <button class="btn btn-link" data-toggle="collapse" data-target="#collapseTwo" aria-controls="collapseTwo">
+                                        Grad-CAM Explanations
+                                    </button>
+                                </h5>
+                            </div>
+                            <div id="collapseTwo" class="collapse show" aria-labelledby="headingTwo" data-parent="#accordion2">
+                                <div class="card-body">
+                        <h3>Grad-CAM with Explanations</h3>
+                        <div class="image-container" style="position: relative;">
+                            <img src="{{ url_for('static', filename='gradcam/' ~ eff_cam) }}" class="img-fluid"
+                                 alt="Grad-CAM">
+                            <div id="tooltip"
+                                 style="position:absolute; display:none; padding:10px; background:#333; color:#fff; border-radius:5px; pointer-events:none; z-index:1000;"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+                    {% endif %}
+
+    <br>
+
+</div>
+
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
+        crossorigin="anonymous"></script>
+<script>
+    fetch('/static/gradcam/{{ explanations }}')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.querySelector('.image-container');
+            const tooltip = document.getElementById('tooltip');
+
+            const containerRect = container.getBoundingClientRect();
+
+            data.regions.forEach(region => {
+                const [x, y, w, h] = region.coords;
+                const overlay = document.createElement('div');
+                overlay.style.position = 'absolute';
+                overlay.style.left = x + 'px';
+                overlay.style.top = y + 'px';
+                overlay.style.width = w + 'px';
+                overlay.style.height = h + 'px';
+                overlay.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+                overlay.style.cursor = 'pointer';
+                overlay.style.zIndex = 2; // ensure overlay sits above the image
+
+                overlay.addEventListener('mouseenter', (e) => {
+                    tooltip.style.display = 'block';
+                    tooltip.innerText = region.explanation;
+                    // compute tooltip position relative to the container
+                    tooltip.style.left = (e.clientX - containerRect.left + 10) + 'px';
+                    tooltip.style.top = (e.clientY - containerRect.top + 10) + 'px';
+                });
+
+                overlay.addEventListener('mousemove', (e) => {
+                    tooltip.style.left = (e.clientX - containerRect.left + 10) + 'px';
+                    tooltip.style.top = (e.clientY - containerRect.top + 10) + 'px';
+                });
+
+                overlay.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+
+                container.appendChild(overlay);
+            });
+        })
+        .catch(err => console.error('Error fetching explanations:', err));
+</script>
+
+</body>
